@@ -1,6 +1,9 @@
 #![no_std]
 #![no_main]
 
+mod display;
+mod font;
+
 use panic_halt as _;
 
 #[arduino_hal::entry]

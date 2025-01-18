@@ -1,6 +1,10 @@
 shut-up-device
 ==============
 
+Small Gizmo to beep at someone if they are being too loud, such as when they play League of Legends at 12am (*cough* my brother *cough*).
+
+This project is a WIP, and will feature schematics and a blog post.
+
 Rust project for the _Arduino Uno_.
 
 ## Build Instructions
@@ -19,12 +23,9 @@ Rust project for the _Arduino Uno_.
 [`ravedude`]: https://crates.io/crates/ravedude
 
 ## License
-Licensed under either of
-
- - Apache License, Version 2.0
+Licensed under the Apache License, Version 2.0
    ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
- - MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
 
 at your option.
 

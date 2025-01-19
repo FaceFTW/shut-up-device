@@ -1,7 +1,7 @@
-const CHAR_WIDTH: u8 = 5;
-const CHAR_HEIGHT: u8 = 7;
+pub(crate) const CHAR_WIDTH: u8 = 5;
+pub(crate) const CHAR_HEIGHT: u8 = 7;
 ///Assumes 0 = ASCII 0x20 or ASCII 32
-const FONT_DATA: [[u8; 5]; 97] = [
+pub(crate) const FONT_DATA: [[u8; 5]; 97] = [
     [0x00, 0x00, 0x00, 0x00, 0x00], // (space)
     [0x00, 0x00, 0x5F, 0x00, 0x00], // !
     [0x00, 0x07, 0x00, 0x07, 0x00], // "
@@ -102,7 +102,7 @@ const FONT_DATA: [[u8; 5]; 97] = [
 ];
 
 #[inline] //This might be bad given the casting assertions we have to make
-fn get_font_char(c: char) -> [u8; 5] {
+pub(crate) fn get_font_char(c: char) -> [u8; 5] {
     let idx = match c.cmp(&' ') {
         core::cmp::Ordering::Less => 0usize,
         _ => u32::from(c) as usize - 32usize, //I wish I could coerce to a smaller size but rust chars are unicode soooo...

@@ -1,25 +1,25 @@
 #![no_std]
 #![no_main]
+#![feature(inline_const)]
 
 mod display;
 mod font;
 
+use arduino_hal::I2c;
 use panic_halt as _;
+pub use unwrap_infallible::UnwrapInfallible as _;
 
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
 
-    /*
-     * For examples (and inspiration), head to
-     *
-     *     https://github.com/Rahix/avr-hal/tree/main/examples
-     *
-     * NOTE: Not all examples were ported to all boards!  There is a good chance though, that code
-     * for a different board can be adapted for yours.  The Arduino Uno currently has the most
-     * examples available.
-     */
+    let mut I2c = arduino_hal::I2c::new(
+        dp.TWI,
+        pins.a4.into_pull_up_input(),
+        pins.a5.into_pull_up_input(),
+        50000,
+    );
 
     let mut led = pins.d13.into_output();
 

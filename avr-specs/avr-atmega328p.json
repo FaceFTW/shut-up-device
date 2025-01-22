@@ -28,10 +28,12 @@
   "pre-link-args": {
     "gnu-cc": [
       "-mmcu=atmega328p",
+	  "-Os",
       "-Wl,--as-needed,--print-memory-usage"
     ],
     "gnu-lld-cc": [
       "-mmcu=atmega328p",
+	  "-Os",
       "-Wl,--as-needed,--print-memory-usage"
     ]
   },

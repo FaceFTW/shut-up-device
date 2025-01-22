@@ -16,6 +16,7 @@ ufmt = "0.2.0"
 nb = "1.1.0"
 embedded-hal = "1.0"
 unwrap-infallible = '0.1'
+avr-device = "0.7"
 
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
@@ -28,11 +29,20 @@ features = ["arduino-uno"]
 [build-dependencies.proc-macro2]
 version = "=1.0.79"
 
+
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]
 panic = "abort"
 lto = true
 opt-level = "s"
+codegen-units = 1
+debug-assertions = false
+strip = "symbols"
+
+[profile.dev.package."*"]
+opt-level = 's'
+strip = "symbols"
+debug-assertions = false
 
 [profile.release]
 panic = "abort"

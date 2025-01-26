@@ -36,13 +36,9 @@ panic = "abort"
 lto = true
 opt-level = "s"
 codegen-units = 1
-debug-assertions = false
-strip = "symbols"
 
 [profile.dev.package."*"]
 opt-level = 's'
-strip = "symbols"
-debug-assertions = false
 
 [profile.release]
 panic = "abort"

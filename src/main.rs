@@ -50,12 +50,22 @@ fn main() -> ! {
         dp.TWI,
         pins.a4.into_pull_up_input(),
         pins.a5.into_pull_up_input(),
-        50000,
+        400000,
     );
 
     let mut led = pins.d13.into_output();
 
-    let mut display = SSD1306Display::new(&mut i2c).expect("no");
+    let mut display = match SSD1306Display::new(&mut i2c) {
+        Ok(disp) => disp,
+        Err(err) => match err {
+            arduino_hal::i2c::Error::ArbitrationLost => panic!("arb lost"),
+            arduino_hal::i2c::Error::AddressNack => panic!("addr nack"),
+            arduino_hal::i2c::Error::DataNack => panic!("data nack"),
+            arduino_hal::i2c::Error::BusError => panic!("bus err"),
+            arduino_hal::i2c::Error::Unknown => panic!("uhhhh"),
+        },
+    };
+    display.clear(&mut i2c);
     display.write_str(&mut i2c, "Hello World");
     display.set_cursor(&mut i2c, 0, 1);
     display.write_str(&mut i2c, "0123456789");

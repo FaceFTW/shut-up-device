@@ -27,11 +27,11 @@ const SSD1306_SEGREMAP: u8 = 0xA0;
 /** Resume display from GRAM content. */
 const SSD1306_DISPLAYALLON_RESUME: u8 = 0xA4;
 /** Force display on regardless of GRAM content. */
-const SSD1306_DISPLAYALLON: u8 = 0xA5;
+// const SSD1306_DISPLAYALLON: u8 = 0xA5;
 /** Set Normal Display. */
 const SSD1306_NORMALDISPLAY: u8 = 0xA6;
 /** Set Inverse Display. */
-const SSD1306_INVERTDISPLAY: u8 = 0xA7;
+// const SSD1306_INVERTDISPLAY: u8 = 0xA7;
 /** Set Multiplex Ratio from 16 to 63. */
 const SSD1306_SETMULTIPLEX: u8 = 0xA8;
 /** Set Display off. */
@@ -41,7 +41,7 @@ const SSD1306_DISPLAYON: u8 = 0xAF;
 /**Set GDDRAM Page Start Address. */
 const SSD1306_SETSTARTPAGE: u8 = 0xB0;
 /** Set COM output scan direction normal. */
-const SSD1306_COMSCANINC: u8 = 0xC0;
+// const SSD1306_COMSCANINC: u8 = 0xC0;
 /** Set COM output scan direction reversed. */
 const SSD1306_COMSCANDEC: u8 = 0xC8;
 /** Set Display Offset. */
@@ -55,11 +55,11 @@ const SSD1306_SETDISPLAYCLOCKDIV: u8 = 0xD5;
 /** Set Pre-charge Period */
 const SSD1306_SETPRECHARGE: u8 = 0xD9;
 /** Deactivate scroll */
-const SSD1306_DEACTIVATE_SCROLL: u8 = 0x2E;
+// const SSD1306_DEACTIVATE_SCROLL: u8 = 0x2E;
 /** No Operation Command. */
-const SSD1306_NOP: u8 = 0xE3;
+// const SSD1306_NOP: u8 = 0xE3;
 
-const I2C_ADDR: u8 = 0x30;
+const I2C_ADDR: u8 = 0x3C;
 
 // enum SSD1306WriteMode {
 //     Command = 0, //writeCmd
@@ -104,9 +104,6 @@ impl SSD1306Display {
             Err(err) => Err(err),
         }
     }
-    pub fn reset(&mut self, wire: &mut arduino_hal::I2c){
-
-    }
 
     pub fn write(&mut self, wire: &mut arduino_hal::I2c, ch: char) -> usize {
         match ch {
@@ -148,6 +145,16 @@ impl SSD1306Display {
     }
 
     fn write_cmd(&mut self, wire: &mut arduino_hal::I2c, byte: u8) {
+        match wire.transaction(
+            I2C_ADDR,
+            &mut [Operation::Write(&[0x00]), Operation::Write(&[byte])],
+        ) {
+            Ok(_) => (),
+            Err(_) => (), //TODO Better err handling!!!
+        }
+    }
+
+    fn write_cmd_buf(&mut self, wire: &mut arduino_hal::I2c, bytes: &[u8]) {
         match wire.transaction(
             I2C_ADDR,
             &mut [Operation::Write(&[0x00]), Operation::Write(&[byte])],

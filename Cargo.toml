@@ -17,6 +17,7 @@ nb = "1.1.0"
 embedded-hal = "1.0"
 unwrap-infallible = '0.1'
 avr-device = "0.7"
+heapless = { version = "0.8", features = ["ufmt"] }
 
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
@@ -35,7 +36,10 @@ version = "=1.0.79"
 panic = "abort"
 lto = true
 opt-level = "s"
+debug = false
 codegen-units = 1
+debug-assertions = false
+strip = "symbols"
 
 [profile.dev.package."*"]
 opt-level = 's'

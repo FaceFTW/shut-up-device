@@ -3,6 +3,7 @@
 #![feature(inline_const)]
 
 mod display;
+mod buzzer;
 
 use core::{
     cmp::{max, min},
@@ -13,40 +14,41 @@ use display::SSD1306Display;
 use panic_halt as _;
 pub use unwrap_infallible::UnwrapInfallible as _;
 
+//TODO Save this for the blog, panic handler too lorge
 // #[panic_handler]
 // fn panic(info: &core::panic::PanicInfo) -> ! {
-    // disable interrupts - firmware has panicked so no ISRs should continue running
-    // avr_device::interrupt::disable();
+// disable interrupts - firmware has panicked so no ISRs should continue running
+// avr_device::interrupt::disable();
 
-    // get the peripherals so we can access serial and the LED.
-    //
-    // SAFETY: Because main() already has references to the peripherals this is an unsafe
-    // operation - but because no other code can run after the panic handler was called,
-    // we know it is okay.
-    // let dp = unsafe { arduino_hal::Peripherals::steal() };
-    // let pins = arduino_hal::pins!(dp);
-    // let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+// get the peripherals so we can access serial and the LED.
+//
+// SAFETY: Because main() already has references to the peripherals this is an unsafe
+// operation - but because no other code can run after the panic handler was called,
+// we know it is okay.
+// let dp = unsafe { arduino_hal::Peripherals::steal() };
+// let pins = arduino_hal::pins!(dp);
+// let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
 
-    // Print out panic location
-    // ufmt::uwriteln!(&mut serial, "Firmware panic!\r").unwrap_infallible();
-    // if let Some(loc) = info.location() {
-    //     ufmt::uwriteln!(
-    //         &mut serial,
-    //         "{}\r",
-    //         // loc.file(),
-    //         loc.line(),
-    //         // loc.column(),
-    //     )
-    //     .unwrap_infallible();
-    // }
+// Print out panic location
+// ufmt::uwriteln!(&mut serial, "Firmware panic!\r").unwrap_infallible();
+// if let Some(loc) = info.location() {
+//     ufmt::uwriteln!(
+//         &mut serial,
+//         "{}\r",
+//         // loc.file(),
+//         loc.line(),
+//         // loc.column(),
+//     )
+//     .unwrap_infallible();
+// }
 
-    // if let Some(loc) = info.location() {
-    //     if loc.file() == "firmware.rs" && loc.line() > 110 {
-    //         let mut led = pins.d4.into_output();
-    //         led.set_high();
-    //     }
-    // }
-    // loop {} //So it's infallible type ret.
+// if let Some(loc) = info.location() {
+//     if loc.file() == "firmware.rs" && loc.line() > 110 {
+//         let mut led = pins.d4.into_output();
+//         led.set_high();
+//     }
+// }
+// loop {} //So it's infallible type ret.
 // }
 
 #[arduino_hal::entry]
@@ -68,32 +70,37 @@ fn main() -> ! {
     led.set_low();
     let mut err_led = pins.d4.into_output();
 
+    // let mut buzzer_timer = dp.TC1.
+
     let mic = pins.a0.into_analog_input(&mut adc);
 
     let mut display = match SSD1306Display::new(&mut i2c) {
         Ok(disp) => disp,
-        Err(err) => match err {
-            arduino_hal::i2c::Error::ArbitrationLost => panic!("arb lost"),
-            arduino_hal::i2c::Error::AddressNack => panic!("addr nack"),
-            arduino_hal::i2c::Error::DataNack => panic!("data nack"),
-            arduino_hal::i2c::Error::BusError => panic!("bus err"),
-            arduino_hal::i2c::Error::Unknown => panic!("uhhhh"),
-        },
+        Err(err) => {
+            ufmt::uwriteln!(&mut serial, "Could not initialize display").unwrap_infallible();
+            err_led.set_high();
+            panic!() //No point in continuing without a core piece missing
+        }
     };
     display.clear(&mut i2c).expect("init failed!!");
-    display.write_str(&mut i2c, "Hello World");
+    display.write_str(&mut i2c, "SHUT UP DEVICE");
     display
         .set_cursor(&mut i2c, 0, 1)
         .expect("cursor_set_failed");
-    display.write_str(&mut i2c, "0123456789");
-    arduino_hal::delay_ms(3000);
+    display.write_str(&mut i2c, "rev 0.1 pre-alpha");
+    display
+        .set_cursor(&mut i2c, 0, 2)
+        .expect("cursor_set_failed");
+    display.write_str(&mut i2c, "in-engine footage");
+    arduino_hal::delay_ms(2000);
+    display.clear(&mut i2c).unwrap();
 
     //Since we are in no_std land, allocate a buffer for the display strings, then we can use ufmt
     //heapless crate is based as hell
     let mut oled_buf1: heapless::String<32> = heapless::String::new();
     let mut oled_buf2: heapless::String<32> = heapless::String::new();
 
-    const ENUM_RANGE: Range<u16> = 0..500;
+    const ENUM_RANGE: Range<u16> = 0..100;
     loop {
         //sure, we could do async but that's a headache
         //Timings here are faster than most human reaction speeds, so we should be fine
@@ -128,7 +135,7 @@ fn main() -> ! {
         };
         display.write_str(&mut i2c, &oled_buf1.as_str());
 
-        match display.set_cursor(&mut i2c, 1, 0) {
+        match display.set_cursor(&mut i2c, 0, 1) {
             Ok(_) => (),
             Err(err) => {
                 ufmt::uwriteln!(&mut serial, "set_cursor error {:?}", err).unwrap_infallible();
@@ -138,6 +145,6 @@ fn main() -> ! {
         display.write_str(&mut i2c, &oled_buf2.as_str());
 
         // led.toggle();
-        arduino_hal::delay_ms(1000);
+        // arduino_hal::delay_ms(1000);
     }
 }

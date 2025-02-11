@@ -15,35 +15,38 @@ pub use unwrap_infallible::UnwrapInfallible as _;
 
 // #[panic_handler]
 // fn panic(info: &core::panic::PanicInfo) -> ! {
-//     // disable interrupts - firmware has panicked so no ISRs should continue running
-//     avr_device::interrupt::disable();
+    // disable interrupts - firmware has panicked so no ISRs should continue running
+    // avr_device::interrupt::disable();
 
-//     // get the peripherals so we can access serial and the LED.
-//     //
-//     // SAFETY: Because main() already has references to the peripherals this is an unsafe
-//     // operation - but because no other code can run after the panic handler was called,
-//     // we know it is okay.
-//     let dp = unsafe { arduino_hal::Peripherals::steal() };
-//     let pins = arduino_hal::pins!(dp);
-//     let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    // get the peripherals so we can access serial and the LED.
+    //
+    // SAFETY: Because main() already has references to the peripherals this is an unsafe
+    // operation - but because no other code can run after the panic handler was called,
+    // we know it is okay.
+    // let dp = unsafe { arduino_hal::Peripherals::steal() };
+    // let pins = arduino_hal::pins!(dp);
+    // let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
 
-//     // Print out panic location
-//     ufmt::uwriteln!(&mut serial, "Firmware panic!\r").unwrap_infallible();
-//     if let Some(loc) = info.location() {
-//         ufmt::uwriteln!(
-//             &mut serial,
-//             "  At {}:{}:{}\r",
-//             loc.file(),
-//             loc.line(),
-//             loc.column(),
-//         )
-//         .unwrap_infallible();
-//     }
+    // Print out panic location
+    // ufmt::uwriteln!(&mut serial, "Firmware panic!\r").unwrap_infallible();
+    // if let Some(loc) = info.location() {
+    //     ufmt::uwriteln!(
+    //         &mut serial,
+    //         "{}\r",
+    //         // loc.file(),
+    //         loc.line(),
+    //         // loc.column(),
+    //     )
+    //     .unwrap_infallible();
+    // }
 
-//     // Blink LED rapidly
-//     let mut led = pins.d13.into_output();
-//     led.set_high();
-//     loop {} //So it's infallible type ret.
+    // if let Some(loc) = info.location() {
+    //     if loc.file() == "firmware.rs" && loc.line() > 110 {
+    //         let mut led = pins.d4.into_output();
+    //         led.set_high();
+    //     }
+    // }
+    // loop {} //So it's infallible type ret.
 // }
 
 #[arduino_hal::entry]
@@ -61,7 +64,10 @@ fn main() -> ! {
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
     let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
 
-    // let mut led = pins.d13.into_output();
+    let mut led = pins.d13.into_output();
+    led.set_low();
+    let mut err_led = pins.d4.into_output();
+
     let mic = pins.a0.into_analog_input(&mut adc);
 
     let mut display = match SSD1306Display::new(&mut i2c) {
@@ -87,7 +93,7 @@ fn main() -> ! {
     let mut oled_buf1: heapless::String<32> = heapless::String::new();
     let mut oled_buf2: heapless::String<32> = heapless::String::new();
 
-    const ENUM_RANGE: Range<u16> = 0..1000;
+    const ENUM_RANGE: Range<u16> = 0..500;
     loop {
         //sure, we could do async but that's a headache
         //Timings here are faster than most human reaction speeds, so we should be fine
@@ -106,11 +112,29 @@ fn main() -> ! {
         )
         .unwrap_infallible();
 
+        //Prevents panic from reaching end of buffer
+        //AFAIK uwrite trait can't "seek"
+        oled_buf1.clear();
+        oled_buf2.clear();
         ufmt::uwrite!(&mut oled_buf1, "Min: {}, Max: {}\n", min_ms, max_ms).unwrap();
         ufmt::uwrite!(&mut oled_buf2, "Delta: {}\n", delta).unwrap();
 
-        display.set_cursor(&mut i2c, 0, 0).expect("oopsies");
+        match display.set_cursor(&mut i2c, 0, 0) {
+            Ok(_) => (),
+            Err(err) => {
+                ufmt::uwriteln!(&mut serial, "set_cursor error {:?}", err).unwrap_infallible();
+                err_led.set_high();
+            }
+        };
         display.write_str(&mut i2c, &oled_buf1.as_str());
+
+        match display.set_cursor(&mut i2c, 1, 0) {
+            Ok(_) => (),
+            Err(err) => {
+                ufmt::uwriteln!(&mut serial, "set_cursor error {:?}", err).unwrap_infallible();
+                err_led.set_high();
+            }
+        };
         display.write_str(&mut i2c, &oled_buf2.as_str());
 
         // led.toggle();

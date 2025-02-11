@@ -22,7 +22,7 @@ heapless = { version = "0.8", features = ["ufmt"] }
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
 rev = "3c089795cadbbc7fa83f45958128689fee7ba1e4"
-features = ["arduino-uno"]
+features = ["arduino-nano"]
 
 # The latest releases of `proc-macro2` do not support the rust toolchain that
 # we use.  Thus, we must fix this dependency to an older version where our

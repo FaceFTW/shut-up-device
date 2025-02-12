@@ -2,8 +2,8 @@
 #![no_main]
 #![feature(inline_const)]
 
-mod display;
 mod buzzer;
+mod display;
 
 use core::{
     cmp::{max, min},
@@ -76,56 +76,56 @@ fn main() -> ! {
 
     let mut display = match SSD1306Display::new(&mut i2c) {
         Ok(disp) => disp,
-        Err(err) => {
+        Err(_) => {
             ufmt::uwriteln!(&mut serial, "Could not initialize display").unwrap_infallible();
             err_led.set_high();
             panic!() //No point in continuing without a core piece missing
         }
     };
     display.clear(&mut i2c).expect("init failed!!");
-    display.write_str(&mut i2c, "SHUT UP DEVICE");
-    display
-        .set_cursor(&mut i2c, 0, 1)
-        .expect("cursor_set_failed");
-    display.write_str(&mut i2c, "rev 0.1 pre-alpha");
-    display
-        .set_cursor(&mut i2c, 0, 2)
-        .expect("cursor_set_failed");
-    display.write_str(&mut i2c, "in-engine footage");
+    display.write_str(
+        &mut i2c,
+        "SHUT UP DEVICE\nrev 0.1 pre-alpha\nin-engine footage",
+    );
+
     arduino_hal::delay_ms(2000);
     display.clear(&mut i2c).unwrap();
 
     //Since we are in no_std land, allocate a buffer for the display strings, then we can use ufmt
     //heapless crate is based as hell
-    let mut oled_buf1: heapless::String<32> = heapless::String::new();
-    let mut oled_buf2: heapless::String<32> = heapless::String::new();
+    let mut oled_buf1: heapless::String<64> = heapless::String::new();
 
     const ENUM_RANGE: Range<u16> = 0..100;
     loop {
-        //sure, we could do async but that's a headache
-        //Timings here are faster than most human reaction speeds, so we should be fine
+        // sure, we could do async but that's a headache
+        // Timings here are faster than most human reaction speeds, so we should be fine
         let (min_ms, max_ms) = ENUM_RANGE.fold((1024, 0), |(min_val, max_val), _| {
             let measured = arduino_hal::Adc::read_blocking(&mut adc, &mic);
             (min(min_val, measured), max(max_val, measured))
         });
-        let delta = max_ms - min_ms;
+        let vpp_raw = max_ms - min_ms; //Effectively Vp_p or peak-to-peak voltage in Quantized values
+        let vpp = vpp_raw as f32 / 1024.0 * 5.0;
 
         ufmt::uwriteln!(
             &mut serial,
-            "Min:{}, Max:{}, Delta:{}\r",
-            min_ms,
-            max_ms,
-            delta
+            "Vp_p: {}V,Raw: {}\r",
+            ufmt_float::uFmt_f32::Three(vpp),
+            vpp_raw
         )
         .unwrap_infallible();
 
         //Prevents panic from reaching end of buffer
         //AFAIK uwrite trait can't "seek"
         oled_buf1.clear();
-        oled_buf2.clear();
-        ufmt::uwrite!(&mut oled_buf1, "Min: {}, Max: {}\n", min_ms, max_ms).unwrap();
-        ufmt::uwrite!(&mut oled_buf2, "Delta: {}\n", delta).unwrap();
+        ufmt::uwrite!(
+            &mut oled_buf1,
+            "Vp_p: {}V   \nRaw ADC: {}    ",    //Spaces to overwrite, cheaper than clear operation
+            ufmt_float::uFmt_f32::Three(vpp),
+            vpp_raw
+        )
+        .unwrap();
 
+        //Reset Display + Write to it
         match display.set_cursor(&mut i2c, 0, 0) {
             Ok(_) => (),
             Err(err) => {
@@ -135,16 +135,6 @@ fn main() -> ! {
         };
         display.write_str(&mut i2c, &oled_buf1.as_str());
 
-        match display.set_cursor(&mut i2c, 0, 1) {
-            Ok(_) => (),
-            Err(err) => {
-                ufmt::uwriteln!(&mut serial, "set_cursor error {:?}", err).unwrap_infallible();
-                err_led.set_high();
-            }
-        };
-        display.write_str(&mut i2c, &oled_buf2.as_str());
-
-        // led.toggle();
         // arduino_hal::delay_ms(1000);
     }
 }

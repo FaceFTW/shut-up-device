@@ -100,8 +100,7 @@ impl SSD1306Display {
                 1
             }
             '\n' => {
-                self.col = 0;
-                self.row += 1; //New page
+                self.set_cursor(wire, 0, self.row + 1).unwrap();    //TODO this is an easy crash we should handle but lazy :p
                 1
             }
             ' ' => {

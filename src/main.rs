@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(inline_const)]
+#![feature(abi_avr_interrupt)]
 
 mod buzzer;
 mod display;
@@ -119,7 +119,7 @@ fn main() -> ! {
         oled_buf1.clear();
         ufmt::uwrite!(
             &mut oled_buf1,
-            "Vp_p: {}V   \nRaw ADC: {}    ",    //Spaces to overwrite, cheaper than clear operation
+            "Vp_p: {}V   \nRaw ADC: {}    ", //Spaces to overwrite, cheaper than clear operation
             ufmt_float::uFmt_f32::Three(vpp),
             vpp_raw
         )

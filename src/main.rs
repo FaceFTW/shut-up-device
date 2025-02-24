@@ -10,6 +10,8 @@ use core::{
     ops::Range,
 };
 
+use arduino_hal::hal::usart::BaudrateExt;
+use buzzer::{tone, BuzzerRegisters};
 use display::SSD1306Display;
 use panic_halt as _;
 pub use unwrap_infallible::UnwrapInfallible as _;
@@ -64,7 +66,15 @@ fn main() -> ! {
         400000,
     );
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
-    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    //using non_macro to work around a partial move issue
+    let usart = dp.USART0;
+    let mut serial = arduino_hal::Usart::new(
+        usart,
+        pins.d0,
+        pins.d1.into_output(),
+        BaudrateExt::into_baudrate(57600),
+    );
+    // let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
 
     let mut led = pins.d13.into_output();
     led.set_low();
@@ -73,6 +83,10 @@ fn main() -> ! {
     // let mut buzzer_timer = dp.TC1.
 
     let mic = pins.a0.into_analog_input(&mut adc);
+    let buzzer = pins.d9.into_output();
+    let buzzer_regs = BuzzerRegisters::new(&dp);
+
+    tone(&buzzer, buzzer_regs, 440, 2000);
 
     let mut display = match SSD1306Display::new(&mut i2c) {
         Ok(disp) => disp,

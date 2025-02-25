@@ -2,16 +2,13 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
-mod buzzer;
 mod display;
 
+use arduino_hal::clock::Clock;
 use core::{
     cmp::{max, min},
     ops::Range,
 };
-
-use arduino_hal::hal::usart::BaudrateExt;
-use buzzer::{tone, BuzzerRegisters};
 use display::SSD1306Display;
 use panic_halt as _;
 pub use unwrap_infallible::UnwrapInfallible as _;
@@ -53,12 +50,88 @@ pub use unwrap_infallible::UnwrapInfallible as _;
 // loop {} //So it's infallible type ret.
 // }
 
+/// --------------------------------------
+/// Tone Related Functionality
+/// --------------------------------------
+/// This is based on the avr version of the Arduino API's `tone()` and `noTone()` functions
+/// Reference: https://github.com/arduino/ArduinoCore-avr/blob/master/cores/arduino/Tone.cpp
+/// Some liberties are taken to simplify use
+///
+/// ASSUMPTIONS
+/// - TCCR2A Wave Generation Mode (WGM2) is set to CTC (010) before [tone] calls
+/// - BUZZER_PIN_PORT is initialized in [main]
+/// - TIMSK2_REF is initialized in [main] before [tone] calls
+/// - Buzzer is on Pin 9 (PB1), it is initialized in [main] before [tone] calls to be [avr_hal_generic::port::mode::Output]
+
+//SAFETY: Only used for the buzzer, no multi-buzzer setup expected
+static mut BUZZER_PIN_PORT: *mut u8 = core::ptr::null_mut(); //Set early in main
+const BUZZER_PIN_MASK: u8 = 0b00000010; //Mask for pin 9a
+
+fn tone(tc2: &avr_device::atmega328p::TC2, frequency: u16) {
+    tc2.tccr2a.write(|w| w.wgm2().ctc());
+    // registers.tccr2b.write(|w| w.cs2().direct());
+
+    let (prescalar_bits, ocr) = {
+        let mut ocr_base = arduino_hal::DefaultClock::FREQ / frequency as u32 / 2 - 1;
+        let mut bits = 0b001;
+        //NOTE this was written out as discrete statements in the original arduino code
+        // partially due to multi-config targeting, but maybe small perf? (i.e. bad loop opts)
+        while ocr_base > 255 && bits < 0b111 {
+            ocr_base = (ocr_base + 1) / 2 - 1; //preserve accuracy
+            bits = bits << 1;
+        }
+        (bits, ocr_base as u8)
+    };
+
+    tc2.tccr2b.write(|w| w.cs2().bits(prescalar_bits.into()));
+
+    tc2.ocr2a.write(|w| w.bits(ocr));
+    tc2.timsk2.write(|w| w.ocie2a().set_bit());
+}
+
+fn no_tone(tc2: &avr_device::atmega328p::TC2) {
+    tc2.timsk2.write(|w| w.ocie2a().clear_bit());
+    //Easier than passing the pin as an arg
+    //SAFETY: Only other time it is accessed this way is through ISR, which is now disabled
+    unsafe {
+        *BUZZER_PIN_PORT &= !BUZZER_PIN_MASK; //Turn the port off
+    }
+}
+
+fn tone_duration(tc2: &avr_device::atmega328p::TC2, frequency: u16, delay: u16) {
+    tone(tc2, frequency);
+    arduino_hal::delay_ms(delay);
+    no_tone(tc2);
+}
+
+/// Really basic ISR to toggle the buzzer pin, intentionally lightweight since
+/// AVR doesn't have interrupt nesting, so it doesn't take enough timer cycles.
+/// Source: https://github.com/Rahix/avr-hal/issues/75#issuecomment-706031854
+/// SAFETY ASSUMPTION - ISR Mask is disabled outside of interrupt space
+#[avr_device::interrupt(atmega328p)]
+fn TIMER2_COMPA() {
+    unsafe {
+        *BUZZER_PIN_PORT ^= BUZZER_PIN_MASK; //toggle the port
+        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// ---------------------------------------
+/// Firmware Entry
+/// ----------------------------------------
+
 #[arduino_hal::entry]
 fn main() -> ! {
+    arduino_hal::delay_ms(3000); //Reprogramming Window
+
     let dp = arduino_hal::Peripherals::take().unwrap();
+    //SAFETY - Initialization of the global
+    unsafe {
+        BUZZER_PIN_PORT = dp.PORTB.portb.as_ptr().clone();
+    }
     let pins = arduino_hal::pins!(dp);
 
-    //Setup MCU utils
+    //Setup MCU Subsystems
     let mut i2c = arduino_hal::I2c::new(
         dp.TWI,
         pins.a4.into_pull_up_input(),
@@ -66,27 +139,16 @@ fn main() -> ! {
         400000,
     );
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
-    //using non_macro to work around a partial move issue
-    let usart = dp.USART0;
-    let mut serial = arduino_hal::Usart::new(
-        usart,
-        pins.d0,
-        pins.d1.into_output(),
-        BaudrateExt::into_baudrate(57600),
-    );
-    // let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
 
+    //Setup Specific Pins
     let mut led = pins.d13.into_output();
     led.set_low();
     let mut err_led = pins.d4.into_output();
-
-    // let mut buzzer_timer = dp.TC1.
-
+    let _buzzer = pins.d9.into_output();
     let mic = pins.a0.into_analog_input(&mut adc);
-    let buzzer = pins.d9.into_output();
-    let buzzer_regs = BuzzerRegisters::new(&dp);
 
-    tone(&buzzer, buzzer_regs, 440, 2000);
+    tone_duration(&dp.TC2, 440, 2000);
 
     let mut display = match SSD1306Display::new(&mut i2c) {
         Ok(disp) => disp,

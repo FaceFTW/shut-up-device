@@ -73,12 +73,12 @@ fn tone(tc2: &avr_device::atmega328p::TC2, frequency: u16) {
 
     let (prescalar_bits, ocr) = {
         let mut ocr_base = arduino_hal::DefaultClock::FREQ / frequency as u32 / 2 - 1;
-        let mut bits = 0b001;
+        let mut bits = 0b000;
         //NOTE this was written out as discrete statements in the original arduino code
         // partially due to multi-config targeting, but maybe small perf? (i.e. bad loop opts)
         while ocr_base > 255 && bits < 0b111 {
             ocr_base = (ocr_base + 1) / 2 - 1; //preserve accuracy
-            bits = bits << 1;
+            bits = bits + 1;                //increment bit counter
         }
         (bits, ocr_base as u8)
     };
@@ -87,10 +87,16 @@ fn tone(tc2: &avr_device::atmega328p::TC2, frequency: u16) {
 
     tc2.ocr2a.write(|w| w.bits(ocr));
     tc2.timsk2.write(|w| w.ocie2a().set_bit());
+
+    //SAFETY Interrupts are enabled/disabled through tone/no_tone calls
+    unsafe {avr_device::interrupt::enable();}
 }
 
 fn no_tone(tc2: &avr_device::atmega328p::TC2) {
     tc2.timsk2.write(|w| w.ocie2a().clear_bit());
+    //SAFETY Interrupts are enabled/disabled through tone/no_tone calls
+    avr_device::interrupt::disable();
+
     //Easier than passing the pin as an arg
     //SAFETY: Only other time it is accessed this way is through ISR, which is now disabled
     unsafe {
@@ -149,6 +155,10 @@ fn main() -> ! {
     let mic = pins.a0.into_analog_input(&mut adc);
 
     tone_duration(&dp.TC2, 440, 2000);
+
+    ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.tccr2a.read().bits()).unwrap_infallible();
+    ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.tccr2b.read().bits()).unwrap_infallible();
+    ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.ocr2a.read().bits()).unwrap_infallible();
 
     let mut display = match SSD1306Display::new(&mut i2c) {
         Ok(disp) => disp,

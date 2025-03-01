@@ -68,8 +68,8 @@ static mut BUZZER_PIN_PORT: *mut u8 = core::ptr::null_mut(); //Set early in main
 const BUZZER_PIN_MASK: u8 = 0b00000010; //Mask for pin 9a
 
 fn tone(tc2: &avr_device::atmega328p::TC2, frequency: u16) {
-    tc2.tccr2a.write(|w| w.wgm2().ctc());
-    // registers.tccr2b.write(|w| w.cs2().direct());
+    // tc2.tccr2a.write(|w| w.wgm2().ctc());
+    tc2.tccr2a.write(|w| w.wgm2().pwm_phase()); //NOTE talk about tgis in the blog
 
     let (prescalar_bits, ocr) = {
         let mut ocr_base = arduino_hal::DefaultClock::FREQ / frequency as u32 / 2 - 1;
@@ -78,7 +78,7 @@ fn tone(tc2: &avr_device::atmega328p::TC2, frequency: u16) {
         // partially due to multi-config targeting, but maybe small perf? (i.e. bad loop opts)
         while ocr_base > 255 && bits < 0b111 {
             ocr_base = (ocr_base + 1) / 2 - 1; //preserve accuracy
-            bits = bits + 1;                //increment bit counter
+            bits = bits + 1; //increment bit counter
         }
         (bits, ocr_base as u8)
     };
@@ -89,7 +89,9 @@ fn tone(tc2: &avr_device::atmega328p::TC2, frequency: u16) {
     tc2.timsk2.write(|w| w.ocie2a().set_bit());
 
     //SAFETY Interrupts are enabled/disabled through tone/no_tone calls
-    unsafe {avr_device::interrupt::enable();}
+    unsafe {
+        avr_device::interrupt::enable();
+    }
 }
 
 fn no_tone(tc2: &avr_device::atmega328p::TC2) {
@@ -154,7 +156,7 @@ fn main() -> ! {
     let _buzzer = pins.d9.into_output();
     let mic = pins.a0.into_analog_input(&mut adc);
 
-    tone_duration(&dp.TC2, 440, 2000);
+    tone_duration(&dp.TC2, 2000, 2000);
 
     ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.tccr2a.read().bits()).unwrap_infallible();
     ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.tccr2b.read().bits()).unwrap_infallible();
@@ -194,7 +196,7 @@ fn main() -> ! {
 
         ufmt::uwriteln!(
             &mut serial,
-            "Vp_p: {}V,Raw: {}\r",
+            "{}V,{}\r",
             ufmt_float::uFmt_f32::Three(vpp),
             vpp_raw
         )
@@ -220,7 +222,5 @@ fn main() -> ! {
             }
         };
         display.write_str(&mut i2c, &oled_buf1.as_str());
-
-        // arduino_hal::delay_ms(1000);
     }
 }

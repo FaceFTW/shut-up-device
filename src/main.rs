@@ -156,11 +156,7 @@ fn main() -> ! {
     let _buzzer = pins.d9.into_output();
     let mic = pins.a0.into_analog_input(&mut adc);
 
-    tone_duration(&dp.TC2, 2000, 2000);
-
-    ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.tccr2a.read().bits()).unwrap_infallible();
-    ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.tccr2b.read().bits()).unwrap_infallible();
-    ufmt::uwriteln!(&mut serial, "{}", &dp.TC2.ocr2a.read().bits()).unwrap_infallible();
+    tone_duration(&dp.TC2, 2000, 250);
 
     let mut display = match SSD1306Display::new(&mut i2c) {
         Ok(disp) => disp,
@@ -193,6 +189,19 @@ fn main() -> ! {
         });
         let vpp_raw = max_ms - min_ms; //Effectively Vp_p or peak-to-peak voltage in Quantized values
         let vpp = vpp_raw as f32 / 1024.0 * 5.0;
+
+        //After a struggle with trying to understand how the hell you correlate microphone voltage with perceived loudness
+        // I elect a new method where I use a calibration sound, and use the ADC value generated
+        // For a rough reference,
+        // - 2.5V (or 512 ADC) ~ 80 db (pink noise from speakers)
+        // - 1.8V (or ~370 ADC) ~ 70db (talking ~6in away)
+        // - 0.3 (or ~60 ADC) ~ 33db (background noise where I did initial testing)
+        // Since these measures are _probably_ flawed, erring inbetween 70-80dB ref value
+        if vpp_raw > 440 {
+            tone(&dp.TC2, 2000);
+        } else {
+            no_tone(&dp.TC2);
+        }
 
         ufmt::uwriteln!(
             &mut serial,
